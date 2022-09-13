@@ -47,7 +47,7 @@ export class CarbonCalculatorLambdaStack extends Stack {
     this.calculatorFunction = new lambda.Function(this, 'CarbonCalculatorLambdaFunction', {
       runtime: lambda.Runtime.PYTHON_3_9,
       code: lambda.Code.fromAsset(path.join(__dirname, './lambda')),
-      handler: "calculatorLambda.lambda_handler",
+      handler: "calculator_lambda.lambda_handler",
       timeout: Duration.minutes(5),
       environment: {
         EMISSIONS_FACTOR_TABLE_NAME: emissionsFactorReferenceTable.tableName,
