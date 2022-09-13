@@ -46,12 +46,15 @@ def _get_emissions_factor(activity, category):
     return coefficient
 
 
+def _calculate_emission(raw_data, factor):
+    return float(raw_data) * float(0 if factor == '' else factor) / 1000
+
 class Gas(Enum):
-    CO2 = 1
-    CH4 = 2
-    N2O = 3
-    NF3 = 4
-    SF6 = 5
+    CO2 = 1 # Carbon dioxide
+    CH4 = 2 # Methane
+    N2O = 3 # Nitrous oxide
+    NF3 = 4 # Nitrogen trifluoride
+    SF6 = 5 # Sulfur hexafluoride
 
 
 # Global warming potential (from IPCC report AR5)
@@ -70,27 +73,15 @@ def _calculate_co2e(co2_emissions, ch4_emissions, n2o_emissions):
     result += n2o_emissions * GWP[Gas.N2O]
     return result
 
-
-def _calculate_emission(raw_data, factor):
-    return float(raw_data) * float(0 if factor == '' else factor) / 1000
-
-
-def _append_emissions_output(activity_event):
-    LOGGER.info('appending emissions for: %s', activity_event)
-    emissions_factor = _get_emissions_factor(
-        activity_event['activity'], activity_event['category'])
-    # HACK: hotfix for records without matched emissions_factor in DDB - fix this.
-    if 'Item' not in emissions_factor:
-        return None
+def _append_emissions(activity_event):
+    emissions_factor = _get_emissions_factor(activity_event['activity'], activity_event['category'])
     coefficients = emissions_factor['Item']['emissions_factor_standards']['ghg']['coefficients']
-    LOGGER.info('coefficients: %s', coefficients)
 
     raw_data = activity_event['raw_data']
     co2_emissions = _calculate_emission(raw_data, coefficients['co2_factor'])
     ch4_emissions = _calculate_emission(raw_data, coefficients['ch4_factor'])
     n2o_emissions = _calculate_emission(raw_data, coefficients['n2o_factor'])
-    co2e_emissions = _calculate_co2e(
-        co2_emissions, ch4_emissions, n2o_emissions)
+    co2e_emissions = _calculate_co2e(co2_emissions, ch4_emissions, n2o_emissions)
     emissions_output = {
         "emissions_output": {
             "calculated_emissions": {
@@ -146,16 +137,7 @@ def _save_enriched_events_to_dynamodb(activity_events):
 
 def lambda_handler(event, context):
     for event_object in _list_events_objects_in_s3():
-        LOGGER.info('object_key: %s', event_object.key)
         activity_events = _read_events_from_s3(event_object.key)
-        LOGGER.info('activity_events: %s', activity_events)
-        # Enrich activity_events with calculated emissions
-        activity_events_with_emissions = list(
-            map(_append_emissions_output, activity_events))
-        # TODO: Do something with records that can't be resolved
-        activity_events_with_emissions = [
-            x for x in activity_events_with_emissions if x is not None]
-        # Save enriched activity_events to S3
-        output_object_url = _save_enriched_events_to_s3(event_object.key, activity_events_with_emissions)
-        # Save enriched activity_events to DynamoDB
+        activity_events_with_emissions = list(map(_append_emissions, activity_events))
+        _save_enriched_events_to_s3(event_object.key, activity_events_with_emissions)
         _save_enriched_events_to_dynamodb(activity_events_with_emissions)
