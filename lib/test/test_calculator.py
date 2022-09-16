@@ -15,7 +15,7 @@ CALCULATOR_FUNCTION_NAME = os.environ['CALCULATOR_FUNCTION_NAME']
 def test_scope1():
     _test_calculator([
         {
-            "key": "testscope1.json",
+            "key": "scope1-cleansed-data/testscope1.json",
             "body": b'{"activity_event_id": "customer-carbonlake-12345", "asset_id": "vehicle-1234", "geo": { "lat": 45.5152, "long": 122.6784}, "origin_measurement_timestamp":"2022-06-26 02:31:29", "scope": 1, "category": "mobile-combustion", "activity": "Diesel Fuel - Diesel Passenger Cars", "source": "company_fleet_management_database", "raw_data": 103.45, "units": "gal"}',
             "expected": [EmissionOutput("customer-carbonlake-12345", 1.0562245000000001, 1.1638125000000002e-06, 2.3276250000000004e-06, 1.0569472275625, 1.056873907375, 10.21698625, 10.2162775)]
         }
@@ -24,7 +24,7 @@ def test_scope1():
 def test_scope1_2lines():
     _test_calculator([
         {
-            "key": "testscope1_2lines.json",
+            "key": "scope1-cleansed-data/testscope1_2lines.json",
             "body": b'''{"activity_event_id": "customer-carbonlake-12345", "asset_id": "vehicle-1234", "geo": { "lat": 45.5152, "long": 122.6784}, "origin_measurement_timestamp":"2022-06-26 02:31:29", "scope": 1, "category": "mobile-combustion", "activity": "Diesel Fuel - Diesel Passenger Cars", "source": "company_fleet_management_database", "raw_data": 103.45, "units": "gal"}
                         {"activity_event_id": "customer-carbonlake-12346", "asset_id": "vehicle-1235", "geo": { "lat": 45.5152, "long": 122.6784}, "origin_measurement_timestamp":"2022-06-26 02:31:29", "scope": 1, "category": "mobile-combustion", "activity": "Diesel Fuel - Diesel Passenger Cars", "source": "company_fleet_management_database", "raw_data": 13.5, "units": "gal"}''',
             "expected": [EmissionOutput("customer-carbonlake-12345", 1.0562245000000001, 1.1638125000000002e-06, 2.3276250000000004e-06, 1.0569472275625, 1.056873907375, 10.21698625, 10.2162775),
@@ -35,7 +35,7 @@ def test_scope1_2lines():
 def test_scope2_location_based():
     _test_calculator([
         {
-            "key": "testscope2_location.json",
+            "key": "scope2-bill-extracted-data/testscope2_location.json",
             "body": b'{ "activity_event_id": "customer-carbonlake-12345", "supplier": "eversource", "scope": 2, "category": "grid-region-location-based", "activity": "Quebec", "raw_data": 453, "units": "kwH"}',
             "expected": [EmissionOutput("customer-carbonlake-12345", 0.0005436, 0.0, 4.5299999999999995e-08, 0.0005570994, 0.0005556045, 0.0012298, 0.0012265)]
         }
@@ -44,7 +44,7 @@ def test_scope2_location_based():
 def test_scope2_market_based_residual_mix():
     _test_calculator([
         {
-            "key": "testscope2_market.json",
+            "key": "scope2-bill-extracted-data/testscope2_market.json",
             "body": b'{ "activity_event_id": "customer-carbonlake-12345", "supplier": "eversource", "scope": 2, "category": "egrid-subregion-residual-mix-market-based", "activity": "Quebec", "raw_data": 453, "units": "kwH"}',
             "expected": [EmissionOutput("customer-carbonlake-12345", 0.020414174106, 0.0, 0.0, 0.020414174106, 0.020414174106, 0.045064402, 0.045064402)]
         }
@@ -53,12 +53,12 @@ def test_scope2_market_based_residual_mix():
 def test_multiple_events_objects():
     _test_calculator([
         {
-            "key": "testscope2_location.json",
+            "key": "scope2-bill-extracted-data/testscope2_location.json",
             "body": b'{ "activity_event_id": "customer-carbonlake-12345", "supplier": "eversource", "scope": 2, "category": "grid-region-location-based", "activity": "Quebec", "raw_data": 453, "units": "kwH"}',
             "expected": [EmissionOutput("customer-carbonlake-12345", 0.0005436, 0.0, 4.5299999999999995e-08, 0.0005570994, 0.0005556045, 0.0012298, 0.0012265)]
         },
         {
-            "key": "testscope2_market.json",
+            "key": "scope2-bill-extracted-data/testscope2_market.json",
             "body": b'{ "activity_event_id": "customer-carbonlake-12345", "supplier": "eversource", "scope": 2, "category": "egrid-subregion-residual-mix-market-based", "activity": "Quebec", "raw_data": 453, "units": "kwH"}',
             "expected": [EmissionOutput("customer-carbonlake-12345", 0.020414174106, 0.0, 0.0, 0.020414174106, 0.020414174106, 0.045064402, 0.045064402)]
         }

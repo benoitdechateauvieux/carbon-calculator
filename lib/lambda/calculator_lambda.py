@@ -9,18 +9,28 @@ from decimal import Decimal
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
+PREFIX_SCOPE1 = "scope1-cleansed-data"
+PREFIX_SCOPE2 = "scope2-bill-extracted-data"
+
 EMISSION_FACTORS_TABLE_NAME = os.environ.get('EMISSIONS_FACTOR_TABLE_NAME')
 INPUT_S3_BUCKET_NAME = os.environ.get('TRANSFORMED_BUCKET_NAME')
 OUTPUT_S3_BUCKET_NAME = os.environ.get('ENRICHED_BUCKET_NAME')
 OUTPUT_DYNAMODB_TABLE_NAME = os.environ.get('CALCULATOR_OUTPUT_TABLE_NAME')
 
-
-s3 = boto3.resource('s3')
 dynamodb = boto3.resource('dynamodb')
+s3 = boto3.resource('s3')
+s3client = boto3.client("s3")
 
 def _list_events_objects_in_s3():
-    bucket = s3.Bucket(INPUT_S3_BUCKET_NAME)
-    return bucket.objects.all()
+    objects=[]
+    for prefix in [PREFIX_SCOPE1, PREFIX_SCOPE2]:
+        response = s3client.list_objects_v2(
+            Bucket = INPUT_S3_BUCKET_NAME,
+            Prefix = prefix
+        )
+        if response['KeyCount'] > 0:
+            objects += map(lambda object: object['Key'], response['Contents'])
+    return objects
 
 def _read_events_from_s3(object_key):
     # Read activity_events object

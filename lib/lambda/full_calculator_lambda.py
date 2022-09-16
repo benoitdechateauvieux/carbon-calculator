@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+from sys import prefix
 import boto3
 from enum import Enum
 from urllib.parse import urlparse
@@ -9,17 +10,28 @@ from decimal import Decimal
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
+PREFIX_SCOPE1 = "scope1-cleansed-data"
+PREFIX_SCOPE2 = "scope2-bill-extracted-data"
+
 EMISSION_FACTORS_TABLE_NAME = os.environ.get('EMISSIONS_FACTOR_TABLE_NAME')
 INPUT_S3_BUCKET_NAME = os.environ.get('TRANSFORMED_BUCKET_NAME')
 OUTPUT_S3_BUCKET_NAME = os.environ.get('ENRICHED_BUCKET_NAME')
 OUTPUT_DYNAMODB_TABLE_NAME = os.environ.get('CALCULATOR_OUTPUT_TABLE_NAME')
 
-
+dynamodb = boto3.resource('dynamodb')
 s3 = boto3.resource('s3')
+s3client = boto3.client("s3")
 
 def _list_events_objects_in_s3():
-    bucket = s3.Bucket(INPUT_S3_BUCKET_NAME)
-    return bucket.objects.all()
+    objects=[]
+    for prefix in [PREFIX_SCOPE1, PREFIX_SCOPE2]:
+        response = s3client.list_objects_v2(
+            Bucket = INPUT_S3_BUCKET_NAME,
+            Prefix = prefix
+        )
+        if response['KeyCount'] > 0:
+            objects += map(lambda object: object['Key'], response['Contents'])
+    return objects
 
 def _read_events_from_s3(object_key):
     # Read activity_events object
@@ -52,9 +64,6 @@ def _save_enriched_events_to_dynamodb(activity_events):
             activity_event_with_decimal = json.loads(
                 json.dumps(activity_event), parse_float=Decimal)
             batch.put_item(Item=activity_event_with_decimal)
-
-
-dynamodb = boto3.resource('dynamodb')
 
 
 def _get_emissions_factor(activity, category):
@@ -137,7 +146,7 @@ def _append_emissions(activity_event):
 
 def lambda_handler(event, context):
     for event_object in _list_events_objects_in_s3():
-        activity_events = _read_events_from_s3(event_object.key)
+        activity_events = _read_events_from_s3(event_object)
         activity_events_with_emissions = list(map(_append_emissions, activity_events))
-        _save_enriched_events_to_s3(event_object.key, activity_events_with_emissions)
+        _save_enriched_events_to_s3(event_object, activity_events_with_emissions)
         _save_enriched_events_to_dynamodb(activity_events_with_emissions)
