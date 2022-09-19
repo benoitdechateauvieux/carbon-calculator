@@ -21,6 +21,8 @@ dynamodb = boto3.resource('dynamodb')
 s3 = boto3.resource('s3')
 s3client = boto3.client("s3")
 
+emission_factors_cache = {}
+
 def _list_events_objects_in_s3():
     objects=[]
     for prefix in [PREFIX_SCOPE1, PREFIX_SCOPE2]:

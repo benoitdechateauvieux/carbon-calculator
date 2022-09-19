@@ -22,6 +22,8 @@ dynamodb = boto3.resource('dynamodb')
 s3 = boto3.resource('s3')
 s3client = boto3.client("s3")
 
+emission_factors_cache = {}
+
 def _list_events_objects_in_s3():
     objects=[]
     for prefix in [PREFIX_SCOPE1, PREFIX_SCOPE2]:
@@ -67,15 +69,19 @@ def _save_enriched_events_to_dynamodb(activity_events):
 
 
 def _get_emissions_factor(activity, category):
-    LOGGER.info("getting emissions factor from database")
-    table = dynamodb.Table(EMISSION_FACTORS_TABLE_NAME)
-    coefficient = table.get_item(
-        Key={
-            'category': category,
-            'activity': activity,
-        }
-    )
-    return coefficient
+    cache_key = frozenset({activity, category})
+    if cache_key in emission_factors_cache:
+        return emission_factors_cache[cache_key]
+    else :
+        table = dynamodb.Table(EMISSION_FACTORS_TABLE_NAME)
+        coefficient = table.get_item(
+            Key={
+                'category': category,
+                'activity': activity,
+            }
+        )
+        emission_factors_cache[cache_key] = coefficient
+        return coefficient
 
 
 def _calculate_emission(raw_data, factor):
