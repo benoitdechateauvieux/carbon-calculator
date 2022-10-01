@@ -8,5 +8,5 @@ const lambdaStack = new CarbonCalculatorLambdaStack(app, 'CarbonCalculatorLambda
 new CarbonCalculatorTestStack(app, 'CarbonCalculatorTestStack', {
     calculatorFunction: lambdaStack.calculatorFunction,
     inputBucket: lambdaStack.inputBucket,
-    // outputCluster: lambdaStack.outputCluster
+    outputCluster: lambdaStack.outputCluster
 })

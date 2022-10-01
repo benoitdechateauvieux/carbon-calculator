@@ -53,7 +53,7 @@ def _save_enriched_events_to_redshift(activity_events):
     secret = secret_value['SecretString']
     secret_json = json.loads(secret)
     for activity_event in activity_events:
-        response = redshift.execute_statement(
+        redshift.execute_statement(
             Database=secret_json['dbname'],
             SecretArn=REDSHIFT_SECRET,
             Sql= "INSERT INTO calculated_emissions(activity_event_id, asset_id, geo, origin_measurement_timestamp, scope, category, activity, source, raw_data, units, co2e_amount, co2e_unit, n2o_amount, n2o_unit, ch4_amount, ch4_unit, co2_amount, co2_unit, emissions_factor_amount, emissions_factor_unit) VALUES (:activity_event_id, :asset_id, ST_Point(:long, :lat), :origin_measurement_timestamp, :scope, :category, :activity, :source, :raw_data, :units, :co2e_amount, :co2e_unit, :n2o_amount, :n2o_unit, :ch4_amount, :ch4_unit, :co2_amount, :co2_unit, :emissions_factor_amount, :emissions_factor_unit)",
