@@ -10,8 +10,7 @@ from decimal import Decimal
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
-PREFIX_SCOPE1 = "scope1-cleansed-data"
-PREFIX_SCOPE2 = "scope2-bill-extracted-data"
+S3_PREFIXES = ["scope1-cleansed-data", "scope2-bill-extracted-data"]
 
 EMISSION_FACTORS_TABLE_NAME = os.environ.get('EMISSIONS_FACTOR_TABLE_NAME')
 INPUT_S3_BUCKET_NAME = os.environ.get('TRANSFORMED_BUCKET_NAME')
@@ -24,12 +23,19 @@ s3client = boto3.client("s3")
 secretsmanager = boto3.client('secretsmanager')
 redshift = boto3.client('redshift-data')
 
+# Get Redshift cluster and database names
+secret_value = secretsmanager.get_secret_value(SecretId=REDSHIFT_SECRET)
+secret = secret_value['SecretString']
+secret_json = json.loads(secret)
+redshift_db_name = secret_json['dbname']
+redshift_cluster_identifier = secret_json['dbClusterIdentifier']
+
 emission_factors_cache = {}
 
 
 def _list_events_objects_in_s3():
     objects = []
-    for prefix in [PREFIX_SCOPE1, PREFIX_SCOPE2]:
+    for prefix in S3_PREFIXES:
         response = s3client.list_objects_v2(
             Bucket=INPUT_S3_BUCKET_NAME,
             Prefix=prefix
@@ -49,21 +55,18 @@ def _read_events_from_s3(object_key):
 
 def _save_enriched_events_to_redshift(activity_events):
     LOGGER.info('Saving %s activity_events in Redshift', len(activity_events))
-    secret_value = secretsmanager.get_secret_value(SecretId=REDSHIFT_SECRET)
-    secret = secret_value['SecretString']
-    secret_json = json.loads(secret)
     for activity_event in activity_events:
         redshift.execute_statement(
-            Database=secret_json['dbname'],
+            Database=redshift_db_name,
             SecretArn=REDSHIFT_SECRET,
             Sql= "INSERT INTO calculated_emissions(activity_event_id, asset_id, geo, origin_measurement_timestamp, scope, category, activity, source, raw_data, units, co2e_amount, co2e_unit, n2o_amount, n2o_unit, ch4_amount, ch4_unit, co2_amount, co2_unit, emissions_factor_amount, emissions_factor_unit) VALUES (:activity_event_id, :asset_id, ST_Point(:long, :lat), :origin_measurement_timestamp, :scope, :category, :activity, :source, :raw_data, :units, :co2e_amount, :co2e_unit, :n2o_amount, :n2o_unit, :ch4_amount, :ch4_unit, :co2_amount, :co2_unit, :emissions_factor_amount, :emissions_factor_unit)",
-            ClusterIdentifier=secret_json['dbClusterIdentifier'],
+            ClusterIdentifier=redshift_cluster_identifier,
             Parameters=[
                 {'name': 'activity_event_id', 'value': activity_event['activity_event_id']},
                 {'name': 'asset_id', 'value': activity_event.get('asset_id',' ')},
-                {'name': 'long', 'value': str(activity_event['geo']['long']) if activity_event.get('geo', None) else '0.0'}, #for the simplicity of the workshop
-                {'name': 'lat', 'value': str(activity_event['geo']['lat']) if activity_event.get('geo', None) else '0.0'}, #for the simplicity of the workshop
-                {'name': 'origin_measurement_timestamp', 'value': activity_event.get('origin_measurement_timestamp','2022-06-26 02:31:29')}, #for the simplicity of the workshop
+                {'name': 'long', 'value': str(activity_event['geo']['long']) if activity_event.get('geo', None) else '0.0'}, #default value only for the simplicity of the workshop
+                {'name': 'lat', 'value': str(activity_event['geo']['lat']) if activity_event.get('geo', None) else '0.0'}, #default value only for the simplicity of the workshop
+                {'name': 'origin_measurement_timestamp', 'value': activity_event.get('origin_measurement_timestamp','2022-06-26 02:31:29')}, #default value only for the simplicity of the workshop
                 {'name': 'scope', 'value': str(activity_event['scope'])},
                 {'name': 'category', 'value': activity_event['category']},
                 {'name': 'activity', 'value': activity_event['activity']},
