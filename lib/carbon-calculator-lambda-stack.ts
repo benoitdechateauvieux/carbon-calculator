@@ -2,21 +2,27 @@ import { Duration, Stack, StackProps, RemovalPolicy } from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as redshift from '@aws-cdk/aws-redshift-alpha';
 import { custom_resources as cr } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import emission_factors from './emissions_factor_model_2022-05-22.json';
 
 const DDB_BATCH_WRITE_ITEM_CHUNK_SIZE = 25;
+const REDSHIFT_DB_NAME = "emissions";
 
 export class CarbonCalculatorLambdaStack extends Stack {
   public readonly calculatorOutputTable: dynamodb.Table;
   public readonly inputBucket: s3.Bucket;
-  public readonly outputBucket: s3.Bucket;
+  public readonly outputCluster: redshift.Cluster;
   public readonly calculatorFunction: lambda.Function;
 
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+
+    const vpc = new ec2.Vpc(this, 'carbon-calculator-vpc');
 
     this.inputBucket = new s3.Bucket(this, 'CarbonCalculatorInputBucket', {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -24,10 +30,41 @@ export class CarbonCalculatorLambdaStack extends Stack {
       autoDeleteObjects: true,
     });
 
-    this.outputBucket = new s3.Bucket(this, 'CarbonCalculatorOutputBucket', {
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+    this.outputCluster = new redshift.Cluster(this, 'CarbonCalculatorRedshiftCluster', {
+      masterUser: {
+        masterUsername: "admin"
+      },
+      clusterType: redshift.ClusterType.SINGLE_NODE,
+      defaultDatabaseName: REDSHIFT_DB_NAME,
       removalPolicy: RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
+      vpc
+    });
+    const outputTable = new redshift.Table(this, 'CarbonCalculatorRedshiftTable', {
+      cluster: this.outputCluster,
+      databaseName: REDSHIFT_DB_NAME,
+      tableName: "calculated_emissions",
+      tableColumns: [
+        { name: "activity_event_id", dataType: "text"},
+        { name: "asset_id", dataType: "text"},
+        { name: "geo", dataType: "geometry"},
+        { name: "origin_measurement_timestamp", dataType: "timestamptz"},
+        { name: "scope", dataType: "integer"},
+        { name: "category", dataType: "text"},
+        { name: "activity", dataType: "text"},
+        { name: "source", dataType: "text"},
+        { name: "raw_data", dataType: "decimal(32,16)"},
+        { name: "units", dataType: "text"},
+        { name: "co2e_amount", dataType: "decimal(32,16)"},
+        { name: "co2e_unit", dataType: "text"},
+        { name: "n2o_amount", dataType: "decimal(32,16)"},
+        { name: "n2o_unit", dataType: "text"},
+        { name: "ch4_amount", dataType: "decimal(32,16)"},
+        { name: "ch4_unit", dataType: "text"},
+        { name: "co2_amount", dataType: "decimal(32,16)"},
+        { name: "co2_unit", dataType: "text"},
+        { name: "emissions_factor_amount", dataType: "decimal(32,16)"},
+        { name: "emissions_factor_unit", dataType: "text"}
+      ]
     });
 
     const emissionsFactorReferenceTable = new dynamodb.Table(this, "CarbonCalculatorEmissionsFactorReferenceTable", {
@@ -47,20 +84,25 @@ export class CarbonCalculatorLambdaStack extends Stack {
     this.calculatorFunction = new lambda.Function(this, 'CarbonCalculatorLambdaFunction', {
       runtime: lambda.Runtime.PYTHON_3_9,
       code: lambda.Code.fromAsset(path.join(__dirname, './lambda')),
-      handler: "calculator_lambda.lambda_handler",
+      handler: "full_calculator_lambda.lambda_handler",
       timeout: Duration.minutes(5),
       environment: {
         EMISSIONS_FACTOR_TABLE_NAME: emissionsFactorReferenceTable.tableName,
         CALCULATOR_OUTPUT_TABLE_NAME: this.calculatorOutputTable.tableName,
         TRANSFORMED_BUCKET_NAME: this.inputBucket.bucketName,
-        ENRICHED_BUCKET_NAME: this.outputBucket.bucketName
+        REDSHIFT_SECRET: this.outputCluster.secret!.secretArn
       }
     });
 
     emissionsFactorReferenceTable.grantReadData(this.calculatorFunction);
     this.calculatorOutputTable.grantWriteData(this.calculatorFunction);
     this.inputBucket.grantRead(this.calculatorFunction);
-    this.outputBucket.grantWrite(this.calculatorFunction);
+    this.outputCluster.secret!.grantRead(this.calculatorFunction);
+    this.calculatorFunction.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["redshift-data:ExecuteStatement"],
+      resources: ['arn:aws:redshift:us-east-1:'+this.account+':cluster:'+this.outputCluster.clusterName],
+      effect: iam.Effect.ALLOW
+    }))
 
 
     checkDuplicatedEmissionFactors();

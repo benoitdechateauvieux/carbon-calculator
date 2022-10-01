@@ -1,12 +1,13 @@
 import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { aws_lambda as lambda } from 'aws-cdk-lib';
 import { aws_s3 as s3 } from 'aws-cdk-lib';
+import * as redshift from '@aws-cdk/aws-redshift-alpha';
 import { Construct } from 'constructs';
 import * as path from 'path';
 
 export interface CarbonCalculatorTestStackProps extends StackProps {
     inputBucket: s3.Bucket;
-    outputBucket: s3.Bucket;
+    // outputCluster: redshift.Cluster;
     calculatorFunction: lambda.Function;
 }
 
@@ -23,12 +24,12 @@ export class CarbonCalculatorTestStack extends Stack {
             timeout: Duration.seconds(60),
             environment: {
                 INPUT_BUCKET_NAME: props.inputBucket.bucketName,
-                OUTPUT_BUCKET_NAME: props.outputBucket.bucketName,
+                // OUTPUT_CLUSTER_NAME: props.outputCluster.clusterName,
                 CALCULATOR_FUNCTION_NAME: props.calculatorFunction.functionName,
             }
         });
         props.inputBucket.grantReadWrite(carbonlakeCalculatorTestFunction);
-        props.outputBucket.grantReadWrite(carbonlakeCalculatorTestFunction);
+        // props.outputBucket.grantReadWrite(carbonlakeCalculatorTestFunction);
         props.calculatorFunction.grantInvoke(carbonlakeCalculatorTestFunction);
     }
 }
