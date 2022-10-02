@@ -1,7 +1,6 @@
 import logging
 import os
 import json
-from sys import prefix
 import boto3
 from enum import Enum
 from urllib.parse import urlparse
@@ -32,13 +31,12 @@ redshift_cluster_identifier = secret_json['dbClusterIdentifier']
 
 emission_factors_cache = {}
 
-
 def _list_events_objects_in_s3():
     objects = []
     for prefix in S3_PREFIXES:
         response = s3client.list_objects_v2(
-            Bucket=INPUT_S3_BUCKET_NAME,
-            Prefix=prefix
+            Bucket = INPUT_S3_BUCKET_NAME,
+            Prefix = prefix
         )
         if response['KeyCount'] > 0:
             objects += map(lambda object: object['Key'], response['Contents'])
@@ -51,7 +49,6 @@ def _read_events_from_s3(object_key):
     # split into individual activity_events
     activity_events = [json.loads(jline) for jline in activity_events_string.splitlines()]
     return activity_events
-
 
 def _save_enriched_events_to_redshift(activity_events):
     LOGGER.info('Saving %s activity_events in Redshift', len(activity_events))
