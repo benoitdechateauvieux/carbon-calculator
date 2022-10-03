@@ -52,36 +52,47 @@ def _read_events_from_s3(object_key):
 
 def _save_enriched_events_to_redshift(activity_events):
     LOGGER.info('Saving %s activity_events in Redshift', len(activity_events))
+    sqls=[]
     for activity_event in activity_events:
-        redshift.execute_statement(
-            Database=redshift_db_name,
-            SecretArn=REDSHIFT_SECRET,
-            Sql= "INSERT INTO calculated_emissions(activity_event_id, asset_id, geo, origin_measurement_timestamp, scope, category, activity, source, raw_data, units, co2e_amount, co2e_unit, n2o_amount, n2o_unit, ch4_amount, ch4_unit, co2_amount, co2_unit, emissions_factor_amount, emissions_factor_unit) VALUES (:activity_event_id, :asset_id, ST_Point(:long, :lat), :origin_measurement_timestamp, :scope, :category, :activity, :source, :raw_data, :units, :co2e_amount, :co2e_unit, :n2o_amount, :n2o_unit, :ch4_amount, :ch4_unit, :co2_amount, :co2_unit, :emissions_factor_amount, :emissions_factor_unit)",
-            ClusterIdentifier=redshift_cluster_identifier,
-            Parameters=[
-                {'name': 'activity_event_id', 'value': activity_event['activity_event_id']},
-                {'name': 'asset_id', 'value': activity_event.get('asset_id',' ')},
-                {'name': 'lat', 'value': str(json.loads(activity_event['geo'])[0]) if activity_event.get('geo', None) else '0.0'}, #for the simplicity of the workshop
-                {'name': 'long', 'value': str(json.loads(activity_event['geo'])[1]) if activity_event.get('geo', None) else '0.0'}, #for the simplicity of the workshop
-                {'name': 'origin_measurement_timestamp', 'value': activity_event.get('origin_measurement_timestamp','2022-06-26 02:31:29')}, #for the simplicity of the workshop
-                {'name': 'scope', 'value': str(activity_event['scope'])},
-                {'name': 'category', 'value': activity_event['category']},
-                {'name': 'activity', 'value': activity_event['activity']},
-                {'name': 'source', 'value': activity_event.get('source',' ')},
-                {'name': 'raw_data', 'value': str(activity_event['raw_data'])},
-                {'name': 'units', 'value': activity_event['units']},
-                {'name': 'co2e_amount', 'value': str(activity_event['emissions_output']['calculated_emissions']['co2e']['amount'])},
-                {'name': 'co2e_unit', 'value': activity_event['emissions_output']['calculated_emissions']['co2e']['unit']},
-                {'name': 'n2o_amount', 'value': str(activity_event['emissions_output']['calculated_emissions']['n2o']['amount'])},
-                {'name': 'n2o_unit', 'value': activity_event['emissions_output']['calculated_emissions']['n2o']['unit']},
-                {'name': 'ch4_amount', 'value': str(activity_event['emissions_output']['calculated_emissions']['ch4']['amount'])},
-                {'name': 'ch4_unit', 'value': activity_event['emissions_output']['calculated_emissions']['ch4']['unit']},
-                {'name': 'co2_amount', 'value': str(activity_event['emissions_output']['calculated_emissions']['co2']['amount'])},
-                {'name': 'co2_unit', 'value': activity_event['emissions_output']['calculated_emissions']['co2']['unit']},
-                {'name': 'emissions_factor_amount', 'value': str(activity_event['emissions_output']['emissions_factor']['amount'])},
-                {'name': 'emissions_factor_unit', 'value': activity_event['emissions_output']['emissions_factor']['unit']}
-            ]
-        )
+        sql= "INSERT INTO calculated_emissions(activity_event_id"
+        if activity_event.get('asset_id', None):
+            sql+= ", asset_id"
+        if activity_event.get('geo', None):
+            sql+= ", geo"
+        if activity_event.get('origin_measurement_timestamp', None):
+            sql+= ", origin_measurement_timestamp"
+        sql+=", scope, category, activity, source, raw_data, units, co2e_amount, co2e_unit, n2o_amount, n2o_unit, ch4_amount, ch4_unit, co2_amount, co2_unit, emissions_factor_amount, emissions_factor_unit)"
+        sql+=" VALUES ('"+activity_event['activity_event_id']+"'"
+        if activity_event.get('asset_id', None):
+            sql+= ", '"+activity_event['asset_id']+"'"
+        if activity_event.get('geo', None):
+            sql+= ", ST_Point("+str(json.loads(activity_event['geo'])[0])+","+str(json.loads(activity_event['geo'])[1])+")"
+        if activity_event.get('origin_measurement_timestamp', None):
+            sql+= ", '"+activity_event['origin_measurement_timestamp']+"'"
+        sql+=", "+str(activity_event['scope'])
+        sql+=", '"+activity_event['category']+"'"
+        sql+=", '"+activity_event['activity']+"'"
+        sql+=", '"+activity_event.get('source',' ')+"'"
+        sql+=", "+str(activity_event['raw_data'])
+        sql+=", '"+activity_event['units']+"'"
+        sql+=", "+str(activity_event['emissions_output']['calculated_emissions']['co2e']['amount'])
+        sql+=", '"+str(activity_event['emissions_output']['calculated_emissions']['co2e']['unit'])+"'"
+        sql+=", "+str(activity_event['emissions_output']['calculated_emissions']['n2o']['amount'])
+        sql+=", '"+str(activity_event['emissions_output']['calculated_emissions']['n2o']['unit'])+"'"
+        sql+=", "+str(activity_event['emissions_output']['calculated_emissions']['ch4']['amount'])
+        sql+=", '"+str(activity_event['emissions_output']['calculated_emissions']['ch4']['unit'])+"'"
+        sql+=", "+str(activity_event['emissions_output']['calculated_emissions']['co2']['amount'])
+        sql+=", '"+str(activity_event['emissions_output']['calculated_emissions']['co2']['unit'])+"'"
+        sql+=", "+str(activity_event['emissions_output']['emissions_factor']['amount'])
+        sql+=", '"+str(activity_event['emissions_output']['emissions_factor']['unit'])+"'"
+        sql+=")"
+        sqls.append(sql)
+    redshift.batch_execute_statement(
+        Database=redshift_db_name,
+        SecretArn=REDSHIFT_SECRET,
+        ClusterIdentifier=redshift_cluster_identifier,
+        Sqls=sqls
+    )
 
 
 def _save_enriched_events_to_dynamodb(activity_events):
