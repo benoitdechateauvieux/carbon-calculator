@@ -57,7 +57,7 @@ def test_scope1():
     _test_calculator([
         {
             "key": "scope1-cleansed-data/testscope1.json",
-            "body": b'{"activity_event_id": "test-1", "asset_id": "vehicle-1234", "geo": { "lat": 45.5152, "long": 122.6784}, "origin_measurement_timestamp":"2022-06-26 02:31:29", "scope": 1, "category": "mobile-combustion", "activity": "Diesel Fuel - Diesel Passenger Cars", "source": "company_fleet_management_database", "raw_data": 103.45, "units": "gal"}',
+            "body": b'{"activity_event_id": "test-1", "asset_id": "vehicle-1234", "geo": "[30.14392,-97.59394]", "origin_measurement_timestamp":"2022-06-26 02:31:29", "scope": 1, "category": "mobile-combustion", "activity": "Diesel Fuel - Diesel Passenger Cars", "source": "company_fleet_management_database", "raw_data": 103.45, "units": "gal"}',
             "expected": [EmissionOutput("test-1", 1.0562245000000001, 1.1638125e-06, 2.327625e-06, 1.0569472275625, 1.056873907375, 10.21698625, 10.2162775)]
         }
     ])
@@ -66,8 +66,8 @@ def test_scope1_2lines():
     _test_calculator([
         {
             "key": "scope1-cleansed-data/testscope1_2lines.json",
-            "body": b'''{"activity_event_id": "test-2", "asset_id": "vehicle-1234", "geo": { "lat": 45.5152, "long": 122.6784}, "origin_measurement_timestamp":"2022-06-26 02:31:29", "scope": 1, "category": "mobile-combustion", "activity": "Diesel Fuel - Diesel Passenger Cars", "source": "company_fleet_management_database", "raw_data": 103.46, "units": "gal"}
-                        {"activity_event_id": "test-3", "asset_id": "vehicle-1235", "geo": { "lat": 45.5152, "long": 122.6784}, "origin_measurement_timestamp":"2022-06-26 02:31:29", "scope": 1, "category": "mobile-combustion", "activity": "Diesel Fuel - Diesel Passenger Cars", "source": "company_fleet_management_database", "raw_data": 13.5, "units": "gal"}''',
+            "body": b'''{"activity_event_id": "test-2", "asset_id": "vehicle-1234", "geo": "[30.14392,-97.59394]", "origin_measurement_timestamp":"2022-06-26 02:31:29", "scope": 1, "category": "mobile-combustion", "activity": "Diesel Fuel - Diesel Passenger Cars", "source": "company_fleet_management_database", "raw_data": 103.46, "units": "gal"}
+                        {"activity_event_id": "test-3", "asset_id": "vehicle-1235", "geo": "[30.14392,-97.59394]", "origin_measurement_timestamp":"2022-06-26 02:31:29", "scope": 1, "category": "mobile-combustion", "activity": "Diesel Fuel - Diesel Passenger Cars", "source": "company_fleet_management_database", "raw_data": 13.5, "units": "gal"}''',
             "expected": [EmissionOutput("test-2", 1.0563266, 1.1639249999e-06, 2.3278499999e-06, 1.0569472275625, 1.05697607015, 10.21698625, 10.2162775),
                          EmissionOutput("test-3", 0.137835, 1.51875e-07, 3.0375e-07, 0.137929314375, 0.13791974625, 10.21698625, 10.2162775)]
         }

@@ -61,9 +61,9 @@ def _save_enriched_events_to_redshift(activity_events):
             Parameters=[
                 {'name': 'activity_event_id', 'value': activity_event['activity_event_id']},
                 {'name': 'asset_id', 'value': activity_event.get('asset_id',' ')},
-                {'name': 'long', 'value': str(activity_event['geo']['long']) if activity_event.get('geo', None) else '0.0'}, #default value only for the simplicity of the workshop
-                {'name': 'lat', 'value': str(activity_event['geo']['lat']) if activity_event.get('geo', None) else '0.0'}, #default value only for the simplicity of the workshop
-                {'name': 'origin_measurement_timestamp', 'value': activity_event.get('origin_measurement_timestamp','2022-06-26 02:31:29')}, #default value only for the simplicity of the workshop
+                {'name': 'lat', 'value': str(json.loads(activity_event['geo'])[0]) if activity_event.get('geo', None) else '0.0'}, #for the simplicity of the workshop
+                {'name': 'long', 'value': str(json.loads(activity_event['geo'])[1]) if activity_event.get('geo', None) else '0.0'}, #for the simplicity of the workshop
+                {'name': 'origin_measurement_timestamp', 'value': activity_event.get('origin_measurement_timestamp','2022-06-26 02:31:29')}, #for the simplicity of the workshop
                 {'name': 'scope', 'value': str(activity_event['scope'])},
                 {'name': 'category', 'value': activity_event['category']},
                 {'name': 'activity', 'value': activity_event['activity']},
