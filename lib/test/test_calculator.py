@@ -143,16 +143,16 @@ def _test_calculator(events_objects):
                 response = redshift.get_statement_result(Id=statement_id)
                 actual_emissions = response['Records'][0]
 
-                assert math.isclose(float(actual_emissions[10]['stringValue']), expected_emissions[index].co2e_ar5, rel_tol=1e-5)
-                assert actual_emissions[11]['stringValue'] == 'tonnes'
-                assert math.isclose(float(actual_emissions[12]['stringValue']), expected_emissions[index].n2o, rel_tol=1e-5)
-                assert actual_emissions[13]['stringValue'] == 'tonnes'
-                assert math.isclose(float(actual_emissions[14]['stringValue']), expected_emissions[index].ch4, rel_tol=1e-5)
-                assert actual_emissions[15]['stringValue'] == 'tonnes'
-                assert math.isclose(float(actual_emissions[16]['stringValue']), expected_emissions[index].co2, rel_tol=1e-5)
-                assert actual_emissions[17]['stringValue'] == 'tonnes'
-                assert math.isclose(float(actual_emissions[18]['stringValue']), expected_emissions[index].emissions_factor_ar5, rel_tol=1e-5)
-                assert actual_emissions[19]['stringValue'] == 'kgCO2e/unit'
+                assert math.isclose(float(actual_emissions[11]['stringValue']), expected_emissions[index].co2e_ar5, rel_tol=1e-5)
+                assert actual_emissions[12]['stringValue'] == 'tonnes'
+                assert math.isclose(float(actual_emissions[13]['stringValue']), expected_emissions[index].n2o, rel_tol=1e-5)
+                assert actual_emissions[14]['stringValue'] == 'tonnes'
+                assert math.isclose(float(actual_emissions[15]['stringValue']), expected_emissions[index].ch4, rel_tol=1e-5)
+                assert actual_emissions[16]['stringValue'] == 'tonnes'
+                assert math.isclose(float(actual_emissions[17]['stringValue']), expected_emissions[index].co2, rel_tol=1e-5)
+                assert actual_emissions[18]['stringValue'] == 'tonnes'
+                assert math.isclose(float(actual_emissions[19]['stringValue']), expected_emissions[index].emissions_factor_ar5, rel_tol=1e-5)
+                assert actual_emissions[20]['stringValue'] == 'kgCO2e/unit'
     finally:
         # Cleanup
         for events_object in events_objects:

@@ -29,6 +29,18 @@ export class CarbonCalculatorLambdaStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
+    const outputBucket = new s3.Bucket(this, 'CarbonCalculatorOutputBucket', {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    // Role to COPY data into Redshift
+    const redshiftRole = new iam.Role(this, "CarbonCalculatorRedshiftRole", {
+      assumedBy: new iam.ServicePrincipal('redshift.amazonaws.com'),
+    });
+    redshiftRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonRedshiftAllCommandsFullAccess"))
+    outputBucket.grantRead(redshiftRole);
 
     this.outputCluster = new redshift.Cluster(this, 'CarbonCalculatorRedshiftCluster', {
       masterUser: {
@@ -37,16 +49,18 @@ export class CarbonCalculatorLambdaStack extends Stack {
       clusterType: redshift.ClusterType.SINGLE_NODE,
       defaultDatabaseName: REDSHIFT_DB_NAME,
       removalPolicy: RemovalPolicy.DESTROY,
-      vpc
+      vpc,
+      roles: [redshiftRole]
     });
-    const outputTable = new redshift.Table(this, 'CarbonCalculatorRedshiftTable', {
+    new redshift.Table(this, 'CarbonCalculatorRedshiftTable', {
       cluster: this.outputCluster,
       databaseName: REDSHIFT_DB_NAME,
       tableName: "calculated_emissions",
       tableColumns: [
         { name: "activity_event_id", dataType: "text"},
         { name: "asset_id", dataType: "text"},
-        { name: "geo", dataType: "geometry"},
+        { name: "geo_lat", dataType: "decimal(10,6)"},
+        { name: "geo_lon", dataType: "decimal(10,6)"},
         { name: "origin_measurement_timestamp", dataType: "timestamptz"},
         { name: "scope", dataType: "integer"},
         { name: "category", dataType: "text"},
@@ -90,16 +104,19 @@ export class CarbonCalculatorLambdaStack extends Stack {
         EMISSIONS_FACTOR_TABLE_NAME: emissionsFactorReferenceTable.tableName,
         CALCULATOR_OUTPUT_TABLE_NAME: this.calculatorOutputTable.tableName,
         TRANSFORMED_BUCKET_NAME: this.inputBucket.bucketName,
-        REDSHIFT_SECRET: this.outputCluster.secret!.secretArn
+        OUTPUT_S3_BUCKET_NAME: outputBucket.bucketName,
+        REDSHIFT_SECRET: this.outputCluster.secret!.secretArn,
+        REDSHIFT_ROLE_ARN: redshiftRole.roleArn
       }
     });
 
     emissionsFactorReferenceTable.grantReadData(this.calculatorFunction);
     this.calculatorOutputTable.grantWriteData(this.calculatorFunction);
     this.inputBucket.grantRead(this.calculatorFunction);
+    outputBucket.grantWrite(this.calculatorFunction);
     this.outputCluster.secret!.grantRead(this.calculatorFunction);
     this.calculatorFunction.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["redshift-data:BatchExecuteStatement"],
+      actions: ["redshift-data:ExecuteStatement"],
       resources: ['arn:aws:redshift:us-east-1:'+this.account+':cluster:'+this.outputCluster.clusterName],
       effect: iam.Effect.ALLOW
     }))

@@ -14,6 +14,8 @@ S3_PREFIXES = ["scope1-cleansed-data", "scope2-bill-extracted-data"]
 EMISSION_FACTORS_TABLE_NAME = os.environ.get('EMISSIONS_FACTOR_TABLE_NAME')
 INPUT_S3_BUCKET_NAME = os.environ.get('TRANSFORMED_BUCKET_NAME')
 REDSHIFT_SECRET = os.environ.get('REDSHIFT_SECRET')
+OUTPUT_S3_BUCKET_NAME = os.environ.get('OUTPUT_S3_BUCKET_NAME')
+REDSHIFT_ROLE_ARN = os.environ.get('REDSHIFT_ROLE_ARN')
 OUTPUT_DYNAMODB_TABLE_NAME = os.environ.get('CALCULATOR_OUTPUT_TABLE_NAME')
 
 dynamodb = boto3.resource('dynamodb')
@@ -50,48 +52,45 @@ def _read_events_from_s3(object_key):
     activity_events = [json.loads(jline) for jline in activity_events_string.splitlines()]
     return activity_events
 
-def _save_enriched_events_to_redshift(activity_events):
+def _save_enriched_events_to_redshift(object_key, activity_events):
     LOGGER.info('Saving %s activity_events in Redshift', len(activity_events))
-    sqls=[]
+    # generate the payload as string
+    csv_body = ""
     for activity_event in activity_events:
-        sql= "INSERT INTO calculated_emissions(activity_event_id"
-        if activity_event.get('asset_id', None):
-            sql+= ", asset_id"
-        if activity_event.get('geo', None):
-            sql+= ", geo"
-        if activity_event.get('origin_measurement_timestamp', None):
-            sql+= ", origin_measurement_timestamp"
-        sql+=", scope, category, activity, source, raw_data, units, co2e_amount, co2e_unit, n2o_amount, n2o_unit, ch4_amount, ch4_unit, co2_amount, co2_unit, emissions_factor_amount, emissions_factor_unit)"
-        sql+=" VALUES ('"+activity_event['activity_event_id']+"'"
-        if activity_event.get('asset_id', None):
-            sql+= ", '"+activity_event['asset_id']+"'"
-        if activity_event.get('geo', None):
-            sql+= ", ST_Point("+str(json.loads(activity_event['geo'])[0])+","+str(json.loads(activity_event['geo'])[1])+")"
-        if activity_event.get('origin_measurement_timestamp', None):
-            sql+= ", '"+activity_event['origin_measurement_timestamp']+"'"
-        sql+=", "+str(activity_event['scope'])
-        sql+=", '"+activity_event['category']+"'"
-        sql+=", '"+activity_event['activity']+"'"
-        sql+=", '"+activity_event.get('source',' ')+"'"
-        sql+=", "+str(activity_event['raw_data'])
-        sql+=", '"+activity_event['units']+"'"
-        sql+=", "+str(activity_event['emissions_output']['calculated_emissions']['co2e']['amount'])
-        sql+=", '"+str(activity_event['emissions_output']['calculated_emissions']['co2e']['unit'])+"'"
-        sql+=", "+str(activity_event['emissions_output']['calculated_emissions']['n2o']['amount'])
-        sql+=", '"+str(activity_event['emissions_output']['calculated_emissions']['n2o']['unit'])+"'"
-        sql+=", "+str(activity_event['emissions_output']['calculated_emissions']['ch4']['amount'])
-        sql+=", '"+str(activity_event['emissions_output']['calculated_emissions']['ch4']['unit'])+"'"
-        sql+=", "+str(activity_event['emissions_output']['calculated_emissions']['co2']['amount'])
-        sql+=", '"+str(activity_event['emissions_output']['calculated_emissions']['co2']['unit'])+"'"
-        sql+=", "+str(activity_event['emissions_output']['emissions_factor']['amount'])
-        sql+=", '"+str(activity_event['emissions_output']['emissions_factor']['unit'])+"'"
-        sql+=")"
-        sqls.append(sql)
-    redshift.batch_execute_statement(
+        csv_body += activity_event['activity_event_id']
+        csv_body +=","+activity_event.get('asset_id','')
+        csv_body +=","+(str(json.loads(activity_event['geo'])[0]) if activity_event.get('geo',None) else '')
+        csv_body +=","+(str(json.loads(activity_event['geo'])[1]) if activity_event.get('geo',None) else '')
+        csv_body +=","+activity_event.get('origin_measurement_timestamp','')
+        csv_body +=","+str(activity_event['scope'])
+        csv_body +=",\""+activity_event['category']+"\""
+        csv_body +=",\""+activity_event['activity']+"\""
+        csv_body +=","+activity_event.get('source','')
+        csv_body +=","+str(activity_event['raw_data'])
+        csv_body +=","+activity_event['units']
+        csv_body +=","+str(activity_event['emissions_output']['calculated_emissions']['co2e']['amount'])
+        csv_body +=","+activity_event['emissions_output']['calculated_emissions']['co2e']['unit']
+        csv_body +=","+str(activity_event['emissions_output']['calculated_emissions']['n2o']['amount'])
+        csv_body +=","+activity_event['emissions_output']['calculated_emissions']['n2o']['unit']
+        csv_body +=","+str(activity_event['emissions_output']['calculated_emissions']['ch4']['amount'])
+        csv_body +=","+activity_event['emissions_output']['calculated_emissions']['ch4']['unit']
+        csv_body +=","+str(activity_event['emissions_output']['calculated_emissions']['co2']['amount'])
+        csv_body +=","+activity_event['emissions_output']['calculated_emissions']['co2']['unit']
+        csv_body +=","+str(activity_event['emissions_output']['emissions_factor']['amount'])
+        csv_body +=","+activity_event['emissions_output']['emissions_factor']['unit']
+        csv_body +="\n"
+    # Write to S3
+    output_object_key = object_key.replace(".json", ".csv")
+    obj = s3.Object(OUTPUT_S3_BUCKET_NAME, output_object_key)
+    obj.put(Body=csv_body)
+    # Copy to Redshift
+    object_url =  "s3://"+OUTPUT_S3_BUCKET_NAME+"/"+output_object_key
+    sql = "COPY calculated_emissions FROM '"+object_url+"' IAM_ROLE '"+REDSHIFT_ROLE_ARN+"' CSV TIMEFORMAT AS 'YYYY-MM-DD HH:MI:SS';"
+    resp = redshift.execute_statement(
         Database=redshift_db_name,
         SecretArn=REDSHIFT_SECRET,
         ClusterIdentifier=redshift_cluster_identifier,
-        Sqls=sqls
+        Sql=sql
     )
 
 
@@ -191,5 +190,5 @@ def lambda_handler(event, context):
     for event_object in _list_events_objects_in_s3():
         activity_events = _read_events_from_s3(event_object)
         activity_events_with_emissions = list(map(_append_emissions, activity_events))
-        _save_enriched_events_to_redshift(activity_events_with_emissions)
+        _save_enriched_events_to_redshift(event_object, activity_events_with_emissions)
         _save_enriched_events_to_dynamodb(activity_events_with_emissions)
