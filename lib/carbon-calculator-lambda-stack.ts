@@ -117,7 +117,7 @@ export class CarbonCalculatorLambdaStack extends Stack {
     this.outputCluster.secret!.grantRead(this.calculatorFunction);
     this.calculatorFunction.addToRolePolicy(new iam.PolicyStatement({
       actions: ["redshift-data:ExecuteStatement"],
-      resources: ['arn:aws:redshift:us-east-1:'+this.account+':cluster:'+this.outputCluster.clusterName],
+      resources: ['arn:aws:redshift:'+this.region+':'+this.account+':cluster:'+this.outputCluster.clusterName],
       effect: iam.Effect.ALLOW
     }))
 
